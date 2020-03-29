@@ -12,12 +12,6 @@ def handleMessage(payload):
             print(text)
 
 
-@app.route('/challenge', methods=['post'])
-def challenge():
-    payload = request.json
-    print(payload)
-    return make_response(payload['challenge'], 200)
-
 @app.route('/', methods=['get', 'post'])
 def receiveMessage():
     payload = request.json
