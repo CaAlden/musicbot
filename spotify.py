@@ -41,7 +41,7 @@ class SpotifyAuth:
 
     @property
     def token(self):
-        if self._refresh is None or datatime.datetime.now() > self._refresh:
+        if self._refresh is None or datetime.now() > self._refresh:
             self._load_token()
 
         return self._token
@@ -78,23 +78,71 @@ class Spotify():
     def getLink(self, track):
         return track['external_urls']['spotify']
 
-    def mostPopular(self, trackList):
-        mp = trackList[0]
-        for t in trackList[1:]:
-            if mp['popularity'] < t['popularity']:
-                mp = t
 
-        return mp
+def deleteWithin(s, start, end):
+    sI = s.find(start)
+    eI = ''.join(reversed(s)).find(end)
 
-if __name__ == '__main__':
-    import sys
+    if sI == -1 or eI == -1:
+        return s
+
+    eI = len(s) - eI
+
+    return s[0:sI] + s[eI:]
+
+def cleanTitle(title):
+    for rkey in list('-(){}"'):
+        title = title.replace(rkey, '')
+    return ' '.join(filter(lambda v: v != '', title.split(' ')))
+
+def stripTitle(title):
+    t = deleteWithin(title, '(', ')')
+    return t
+
+def mostPopular(trackList):
+    mp = trackList[0]
+    for t in trackList[1:]:
+        if mp['popularity'] < t['popularity']:
+            mp = t
+
+    return mp
+
+def extractTracks(resp):
+    return resp.json()['tracks']['items']
+
+def makeSearchVector(title):
+    queries = [title, cleanTitle(title), stripTitle(title)]
+    elements = cleanTitle(stripTitle(title)).split(' ')
+    for i in range(1, len(elements)):
+        before = ' '.join(elements[0:(i - 1)])
+        after =  ' '.join(elements[i:])
+        queries.append(before + ' ' + after)
+    return queries
+
+def doSearch(client, t):
+    searchs = makeSearchVector(t)
+    rs = map(client.search, searchs)
+    results = {}
+    for r, search in zip(rs, searchs):
+        results[search] = extractTracks(r)
+
+    return results
+
+def getBest(results):
+    allTs = []
+    for ts in results.values():
+        allTs.extend(ts)
+
+    return allTs[0] if len(allTs) > 0 else None
+
+def lookupSong(client, title):
+    results = doSearch(client, title)
+    return getBest(results)
+
+def makeClientFromConfig():
     with open('./spotify.yml') as keyFile:
         config = yaml.load(keyFile, Loader=Loader)
         CLIENT_ID = config['client_id']
         CLIENT_SECRET = config['secret']
+    return Spotify(CLIENT_ID, CLIENT_SECRET)
 
-    query = " ".join(sys.argv[1:])
-    client = Spotify(CLIENT_ID, CLIENT_SECRET)
-    resp = client.search(query)
-    tracks = resp.json()['tracks']['items']
-    print(client.getLink(client.mostPopular(tracks)))
